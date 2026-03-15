@@ -3,6 +3,8 @@ import type { Sql } from '../db/client';
 import { AppError } from '../errors';
 import { authMiddleware } from '../middleware/auth';
 import { generateTransactionId } from '../utils/token';
+import { getStripe, isStripeEnabled } from '../utils/stripe';
+import { config } from '../config';
 
 export function creditsRoutes(sql: Sql) {
   const app = new Hono();
@@ -64,6 +66,31 @@ export function creditsRoutes(sql: Sql) {
     }
 
     const platformFee = Math.round(Math.max(Number(amount) * 0.055, 0.80) * 100) / 100;
+    const totalCharged = Math.round((Number(amount) + platformFee) * 100) / 100;
+
+    // Stripe mode: create checkout session instead of immediate credit
+    if (isStripeEnabled()) {
+      const stripe = getStripe()!;
+      const session = await stripe.checkout.sessions.create({
+        mode: 'payment',
+        line_items: [{
+          price_data: {
+            currency: 'usd',
+            product_data: { name: `OpenClaw Credits - $${amount}` },
+            unit_amount: Math.round(totalCharged * 100), // cents
+          },
+          quantity: 1,
+        }],
+        metadata: {
+          user_id: userId,
+          credit_amount: String(amount),
+          idempotency_key: idempotencyKey || '',
+        },
+        success_url: `${config.appBaseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${config.appBaseUrl}/payment/cancel`,
+      });
+      return c.json({ data: { checkout_url: session.url, session_id: session.id } });
+    }
 
     const result = await sql.begin(async (tx) => {
       const [updated] = await tx`

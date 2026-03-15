@@ -6,4 +6,8 @@ export const config = {
   // 上游 LLM API 設定
   get upstreamApiKey() { return process.env.UPSTREAM_API_KEY || ''; },
   get upstreamApiBase() { return process.env.UPSTREAM_API_BASE || 'https://api.openai.com'; },
+  // Stripe 設定
+  get stripeSecretKey() { return process.env.STRIPE_SECRET_KEY || ''; },
+  get stripeWebhookSecret() { return process.env.STRIPE_WEBHOOK_SECRET || ''; },
+  get appBaseUrl() { return process.env.APP_BASE_URL || 'http://localhost:3000'; },
 };

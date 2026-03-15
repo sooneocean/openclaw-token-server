@@ -9,7 +9,8 @@
   },
   "dependencies": {
     "hono": "^4.6.0",
-    "postgres": "^3.4.0"
+    "postgres": "^3.4.0",
+    "stripe": "^20.4.1"
   },
   "devDependencies": {
     "@types/bun": "latest"

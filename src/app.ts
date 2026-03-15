@@ -7,6 +7,7 @@ import { keysRoutes } from './routes/keys';
 import { creditsRoutes } from './routes/credits';
 import { oauthRoutes } from './routes/oauth';
 import { proxyRoutes } from './routes/proxy';
+import { webhookRoutes } from './routes/webhooks';
 
 export function createApp(sql: Sql) {
   const app = new Hono();
@@ -32,6 +33,8 @@ export function createApp(sql: Sql) {
   app.route('/oauth', oauthRoutes(sql));
   // Proxy endpoint：使用 provisioned key 轉發 LLM API 請求
   app.route('/v1', proxyRoutes(sql));
+  // Webhook routes（不需要 auth middleware，需要 raw body）
+  app.route('/webhooks', webhookRoutes(sql));
 
   return app;
 }
