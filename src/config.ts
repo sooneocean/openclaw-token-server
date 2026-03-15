@@ -3,4 +3,7 @@ export const config = {
   get githubClientId() { return process.env.GITHUB_CLIENT_ID || ''; },
   get githubClientSecret() { return process.env.GITHUB_CLIENT_SECRET || ''; },
   get port() { return parseInt(process.env.PORT || '3000', 10); },
+  // 上游 LLM API 設定
+  get upstreamApiKey() { return process.env.UPSTREAM_API_KEY || ''; },
+  get upstreamApiBase() { return process.env.UPSTREAM_API_BASE || 'https://api.openai.com'; },
 };

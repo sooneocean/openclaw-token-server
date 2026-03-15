@@ -17,7 +17,8 @@ export async function setupTestDb() {
 
 export async function cleanupTestDb() {
   if (sql) {
-    // Clean all tables in reverse dependency order
+    // 依 FK 相依順序由子表到父表刪除
+    await sql`DELETE FROM usage_logs`.catch(() => { /* 表可能尚未建立（舊測試環境） */ });
     await sql`DELETE FROM credit_transactions`;
     await sql`DELETE FROM credit_balances`;
     await sql`DELETE FROM oauth_sessions`;
