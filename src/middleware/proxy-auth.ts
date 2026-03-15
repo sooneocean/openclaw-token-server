@@ -35,7 +35,7 @@ export function proxyAuthMiddleware(sql: Sql) {
 
     // 查詢 provisioned key 狀態
     const rows = await sql`
-      SELECT id, user_id, credit_limit, limit_reset, usage, disabled, is_revoked
+      SELECT id, user_id, credit_limit, limit_reset, usage, disabled, is_revoked, expires_at
       FROM provisioned_keys
       WHERE key_value = ${token}
     `;
@@ -53,6 +53,10 @@ export function proxyAuthMiddleware(sql: Sql) {
 
     if (key.disabled) {
       throw new AppError('KEY_DISABLED', 'Key is disabled', 401);
+    }
+
+    if (key.expires_at && new Date(key.expires_at) < new Date()) {
+      throw new AppError('KEY_EXPIRED', 'Key has expired', 401);
     }
 
     // 檢查 key 層級的 credit limit（若有設定）

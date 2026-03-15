@@ -12,7 +12,16 @@ import { webhookRoutes } from './routes/webhooks';
 export function createApp(sql: Sql) {
   const app = new Hono();
 
-  app.use('*', cors());
+  app.use('*', cors({ origin: '*' })); // TODO: restrict to known origins in production
+
+  // Body size limit (1MB) — prevent DoS via oversized payloads
+  app.use('*', async (c, next) => {
+    const contentLength = c.req.header('content-length');
+    if (contentLength && parseInt(contentLength, 10) > 1_048_576) {
+      return c.json({ error: { code: 'PAYLOAD_TOO_LARGE', message: 'Request body exceeds 1MB limit' } }, 413);
+    }
+    await next();
+  });
 
   // Security headers
   app.use('*', async (c, next) => {

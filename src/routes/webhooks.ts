@@ -11,6 +11,11 @@ export function webhookRoutes(sql: Sql) {
       return c.json({ error: 'Stripe not configured' }, 400);
     }
 
+    if (!config.stripeWebhookSecret) {
+      console.error('[webhook] STRIPE_WEBHOOK_SECRET not configured — rejecting all webhooks');
+      return c.json({ error: 'Webhook secret not configured' }, 500);
+    }
+
     const stripe = getStripe()!;
     const sig = c.req.header('stripe-signature');
     if (!sig) {
@@ -36,16 +41,14 @@ export function webhookRoutes(sql: Sql) {
         return c.json({ received: true }); // ignore invalid
       }
 
-      // Idempotency: check if already processed
-      if (idempotencyKey) {
-        const existing = await sql`
-          SELECT id FROM credit_transactions
-          WHERE idempotency_key = ${idempotencyKey}
-          AND created_at > now() - interval '24 hours'
-        `;
-        if (existing.length > 0) {
-          return c.json({ received: true }); // already processed
-        }
+      // Idempotency: use Stripe session ID as reliable dedup key
+      const dedupeKey = idempotencyKey || `stripe_${session.id}`;
+      const existing = await sql`
+        SELECT id FROM credit_transactions
+        WHERE idempotency_key = ${dedupeKey}
+      `;
+      if (existing.length > 0) {
+        return c.json({ received: true }); // already processed
       }
 
       // Add credits
@@ -64,7 +67,7 @@ export function webhookRoutes(sql: Sql) {
         await tx`
           INSERT INTO credit_transactions (user_id, type, amount, balance_after, description, idempotency_key)
           VALUES (${userId}::uuid, 'purchase', ${creditAmount}, ${newBalance},
-                  ${'Stripe payment: ' + session.id}, ${idempotencyKey})
+                  ${'Stripe payment: ' + session.id}, ${dedupeKey})
         `;
       });
     }
