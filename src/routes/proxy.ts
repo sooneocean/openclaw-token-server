@@ -31,14 +31,38 @@ export function proxyRoutes(sql: Sql) {
       throw new AppError('INVALID_INPUT', 'model is required', 400);
     }
 
-    // 預檢帳戶 credits（非精確扣減，僅確認帳戶有餘額）
+    // 預檢帳戶 credits + auto-topup 觸發
     const balanceRows = await sql`
-      SELECT total_credits, total_usage
+      SELECT total_credits, total_usage, auto_topup_enabled, auto_topup_threshold, auto_topup_amount
       FROM credit_balances
       WHERE user_id = ${userId}::uuid
     `;
 
-    if (balanceRows.length === 0 || Number(balanceRows[0].total_credits) - Number(balanceRows[0].total_usage) <= 0) {
+    if (balanceRows.length === 0) {
+      throw new AppError('INSUFFICIENT_CREDITS', 'Insufficient credits', 402);
+    }
+
+    const balance = balanceRows[0];
+    let remaining = Number(balance.total_credits) - Number(balance.total_usage);
+
+    // Auto-topup：餘額低於 threshold 時自動加 credits
+    if (balance.auto_topup_enabled && remaining <= Number(balance.auto_topup_threshold)) {
+      const topupAmount = Number(balance.auto_topup_amount);
+      await sql`
+        UPDATE credit_balances
+        SET total_credits = total_credits + ${topupAmount}, updated_at = now()
+        WHERE user_id = ${userId}::uuid
+      `;
+      // 記錄 auto-topup 交易
+      await sql`
+        INSERT INTO credit_transactions (user_id, type, amount, balance_after, description)
+        VALUES (${userId}::uuid, 'auto_topup', ${topupAmount}, ${remaining + topupAmount}, 'Auto top-up triggered by proxy request')
+      `;
+      remaining += topupAmount;
+      console.log(`[proxy] Auto-topup triggered for user ${userId}: +$${topupAmount}`);
+    }
+
+    if (remaining <= 0) {
       throw new AppError('INSUFFICIENT_CREDITS', 'Insufficient credits', 402);
     }
 
