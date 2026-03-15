@@ -34,6 +34,8 @@ cd openclaw-token-server
 export UPSTREAM_API_KEY=sk-...          # your OpenAI / upstream LLM API key
 export GITHUB_CLIENT_ID=Ov23li...       # optional, required for GitHub OAuth
 export GITHUB_CLIENT_SECRET=...         # optional, required for GitHub OAuth
+export STRIPE_SECRET_KEY=sk_test_...    # optional, required for Stripe payments
+export STRIPE_WEBHOOK_SECRET=whsec_... # optional, required for Stripe payments
 
 docker compose up -d
 ```
@@ -167,8 +169,12 @@ response = client.chat.completions.create(
 | `PORT` | No | `3000` | HTTP port to listen on |
 | `GITHUB_CLIENT_ID` | No* | — | GitHub OAuth App client ID |
 | `GITHUB_CLIENT_SECRET` | No* | — | GitHub OAuth App client secret |
+| `STRIPE_SECRET_KEY` | No** | — | Stripe API secret key |
+| `STRIPE_WEBHOOK_SECRET` | No** | — | Stripe webhook endpoint signing secret |
+| `APP_BASE_URL` | No | `http://localhost:3000` | Base URL for Stripe callback redirects |
 
 \* Required only if GitHub OAuth login is used.
+\*\* Required only if Stripe payment processing is used.
 
 ---
 
