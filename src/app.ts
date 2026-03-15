@@ -12,6 +12,16 @@ export function createApp(sql: Sql) {
   const app = new Hono();
 
   app.use('*', cors());
+
+  // Security headers
+  app.use('*', async (c, next) => {
+    await next();
+    c.header('X-Content-Type-Options', 'nosniff');
+    c.header('X-Frame-Options', 'DENY');
+    c.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    c.header('X-Request-Id', crypto.randomUUID());
+  });
+
   app.onError(errorHandler);
 
   app.get('/', (c) => c.json({ status: 'ok' }));

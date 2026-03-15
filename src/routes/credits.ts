@@ -45,6 +45,7 @@ export function creditsRoutes(sql: Sql) {
         SELECT id, amount, balance_after, created_at
         FROM credit_transactions
         WHERE idempotency_key = ${idempotencyKey}
+          AND created_at > now() - interval '24 hours'
       `;
       if (existing.length > 0) {
         const tx = existing[0];
