@@ -2,6 +2,23 @@ import type { Context, Next } from 'hono';
 import type { Sql } from '../db/client';
 import { AppError } from '../errors';
 
+function getPeriodStart(limitReset: string): string {
+  const now = new Date();
+  switch (limitReset) {
+    case 'daily':
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    case 'weekly': {
+      const day = now.getDay();
+      const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Monday start
+      return new Date(now.getFullYear(), now.getMonth(), diff).toISOString();
+    }
+    case 'monthly':
+      return new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    default:
+      return new Date(0).toISOString(); // fallback: epoch
+  }
+}
+
 /**
  * Provisioned Key 驗證 middleware
  * 解析 Authorization: Bearer sk-prov-xxx，查 provisioned_keys 表驗證有效性
@@ -18,7 +35,7 @@ export function proxyAuthMiddleware(sql: Sql) {
 
     // 查詢 provisioned key 狀態
     const rows = await sql`
-      SELECT id, user_id, credit_limit, usage, disabled, is_revoked
+      SELECT id, user_id, credit_limit, limit_reset, usage, disabled, is_revoked
       FROM provisioned_keys
       WHERE key_value = ${token}
     `;
@@ -40,10 +57,27 @@ export function proxyAuthMiddleware(sql: Sql) {
 
     // 檢查 key 層級的 credit limit（若有設定）
     if (key.credit_limit !== null && key.credit_limit !== undefined) {
-      const usage = Number(key.usage);
       const creditLimit = Number(key.credit_limit);
-      if (usage >= creditLimit) {
-        throw new AppError('CREDIT_LIMIT_EXCEEDED', 'Key credit limit exceeded', 402);
+
+      if (key.limit_reset) {
+        // Period-based limit: 查 usage_logs 當期用量
+        const periodStart = getPeriodStart(key.limit_reset);
+        const periodUsageRows = await sql`
+          SELECT COALESCE(SUM(cost), 0) AS period_cost
+          FROM usage_logs
+          WHERE key_id = ${key.id}::uuid
+            AND created_at >= ${periodStart}
+        `;
+        const periodUsage = Number(periodUsageRows[0]?.period_cost ?? 0);
+        if (periodUsage >= creditLimit) {
+          throw new AppError('CREDIT_LIMIT_EXCEEDED', `Key credit limit exceeded for current ${key.limit_reset} period`, 429);
+        }
+      } else {
+        // No reset period: 累計用量檢查
+        const usage = Number(key.usage);
+        if (usage >= creditLimit) {
+          throw new AppError('CREDIT_LIMIT_EXCEEDED', 'Key credit limit exceeded', 429);
+        }
       }
     }
 
